@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧩 Решалка Судоку by Клауди</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🧩 Решалка Судоку</h1>
+        <p class="subtitle">Введите числа и нажмите "Решить!"</p>
+        
+        <div class="sudoku-wrapper">
+            <table id="sudoku-grid"></table>
+        </div>
+        
+        <div class="buttons">
+            <button onclick="solveSudoku()" class="btn btn-solve">✨ Решить!</button>
+            <button onclick="clearBoard()" class="btn btn-clear">🗑️ Очистить</button>
+            <button onclick="loadExample()" class="btn btn-example">📝 Пример</button>
+        </div>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="footer">
+            <p>Сделано с ❤️ благодаря Клауди</p>
+        </div>
+    </div>
+
+    <script>
+        // Создание сетки 9x9
+        function createGrid() {
+            const table = document.getElementById('sudoku-grid');
+            table.innerHTML = '';
+            
+            for (let i = 0; i < 9; i++) {
+                const row = table.insertRow();
+                
+                // Добавляем класс для разделения блоков
+                if (i === 3 || i === 6) {
+                    row.classList.add('border-bottom');
+                }
+                
+                for (let j = 0; j < 9; j++) {
+                    const cell = row.insertCell();
+                    
+                    // Добавляем класс для разделения блоков
+                    if (j === 3 || j === 6) {
+                        cell.classList.add('border-right');
+                    }
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.maxLength = 1;
+                    input.id = `cell-${i}-${j}`;
+                    input.className = 'sudoku-cell';
+                    
+                    // Только цифры 1-9
+                    input.addEventListener('input', function(e) {
+                        this.value = this.value.replace(/[^1-9]/g, '');
+                    });
+                    
+                    // Переход на следующую клетку
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || 
+                            e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            navigate(i, j, e.key);
+                            e.preventDefault();
+                        }
+                    });
+                    
+                    cell.appendChild(input);
+                }
+            }
+        }
+
+        // Навигация стрелками
+        function navigate(row, col, key) {
+            let newRow = row, newCol = col;
+            
+            switch(key) {
+                case 'ArrowRight': newCol = Math.min(8, col + 1); break;
+                case 'ArrowLeft': newCol = Math.max(0, col - 1); break;
+                case 'ArrowDown': newRow = Math.min(8, row + 1); break;
+                case 'ArrowUp': newRow = Math.max(0, row - 1); break;
+            }
+            
+            document.getElementById(`cell-${newRow}-${newCol}`).focus();
+        }
+
+        // Получение доски из сетки
+        function getBoard() {
+            const board = [];
+            for (let i = 0; i < 9; i++) {
+                const row = [];
+                for (let j = 0; j < 9; j++) {
+                    const val = document.getElementById(`cell-${i}-${j}`).value;
+                    row.push(val ? parseInt(val) : 0);
+                }
+                board.push(row);
+            }
+            return board;
+        }
+
+        // Установка доски в сетку
+        function setBoard(board, highlightNew = false) {
+            const originalBoard = highlightNew ? getBoard() : null;
+            
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    const value = board[i][j];
+                    
+                    if (value !== 0) {
+                        cell.value = value;
+                        
+                        // Подсветка новых чисел
+                        if (highlightNew && originalBoard[i][j] === 0) {
+                            cell.classList.add('solved');
+                        } else if (highlightNew) {
+                            cell.classList.add('original');
+                        }
+                    } else {
+                        cell.value = '';
+                    }
+                }
+            }
+        }
+
+        // Решение судоку
+        async function solveSudoku() {
+            const board = getBoard();
+            const messageDiv = document.getElementById('message');
+            
+            // Проверка что хоть что-то введено
+            const hasNumbers = board.some(row => row.some(num => num !== 0));
+            if (!hasNumbers) {
+                showMessage('❌ Введите хотя бы несколько чисел!', 'error');
+                return;
+            }
+            
+            messageDiv.textContent = '⏳ Решаю...';
+            messageDiv.className = 'message info';
+            
+            try {
+                const response = await fetch('/solve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({board: board})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    setBoard(data.solution, true);
+                    showMessage('✅ Судоку решено!', 'success');
+                } else {
+                    showMessage('❌ ' + data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Ошибка сервера!', 'error');
+            }
+        }
+
+        // Очистка доски
+        function clearBoard() {
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    cell.value = '';
+                    cell.classList.remove('solved', 'original');
+                }
+            }
+            document.getElementById('message').textContent = '';
+        }
+
+        // Загрузка примера
+        function loadExample() {
+            const example = [
+                [5, 3, 0, 0, 7, 0, 0, 0, 0],
+                [6, 0, 0, 1, 9, 5, 0, 0, 0],
+                [0, 9, 8, 0, 0, 0, 0, 6, 0],
+                [8, 0, 0, 0, 6, 0, 0, 0, 3],
+                [4, 0, 0, 8, 0, 3, 0, 0, 1],
+                [7, 0, 0, 0, 2, 0, 0, 0, 6],
+                [0, 6, 0, 0, 0, 0, 2, 8, 0],
+                [0, 0, 0, 4, 1, 9, 0, 0, 5],
+                [0, 0, 0, 0, 8, 0, 0, 7, 9]
+            ];
+            setBoard(example);
+            showMessage('📝 Загружен пример судоку', 'info');
+        }
+
+        // Показ сообщения
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+        }
+
+        // Инициализация
+        createGrid();
+    </script>
+</body>
+</html>
