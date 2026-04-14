@@ -1,0 +1,10 @@
+{
+  "name": "Решалка Судоку",
+  "short_name": "Судоку",
+  "lang": "ru",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3efe4",
+  "theme_color": "#f3efe4",
+  "description": "Оффлайн-решатель судоку с вводом через цифровую панель."
+}

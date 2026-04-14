@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3efe4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Решалка Судоку</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <p class="eyebrow">Sudoku Solver</p>
+      <h1>Решалка Судоку</h1>
+      <p class="subtitle">Введите известные цифры, выберите клетки касанием и нажмите «Решить».</p>
+    </header>
+
+    <section class="board-panel" aria-label="Поле судоку">
+      <div class="status-row">
+        <p id="status" class="status" aria-live="polite">Выберите клетку и введите число.</p>
+        <button id="clear-cell-button" class="text-button" type="button">Стереть клетку</button>
+      </div>
+      <div id="board" class="board" role="grid" aria-label="Сетка судоку"></div>
+    </section>
+
+    <section class="controls" aria-label="Панель ввода">
+      <div id="number-pad" class="number-pad" role="group" aria-label="Цифровая панель">
+        <button class="pad-button" type="button" data-value="1">1</button>
+        <button class="pad-button" type="button" data-value="2">2</button>
+        <button class="pad-button" type="button" data-value="3">3</button>
+        <button class="pad-button" type="button" data-value="4">4</button>
+        <button class="pad-button" type="button" data-value="5">5</button>
+        <button class="pad-button" type="button" data-value="6">6</button>
+        <button class="pad-button" type="button" data-value="7">7</button>
+        <button class="pad-button" type="button" data-value="8">8</button>
+        <button class="pad-button" type="button" data-value="9">9</button>
+        <button id="erase-button" class="pad-button pad-button-wide" type="button" data-value="0">Стереть</button>
+      </div>
+
+      <div class="action-row">
+        <button id="solve-button" class="action-button action-button-primary" type="button">Решить</button>
+        <button id="check-button" class="action-button" type="button">Проверить</button>
+        <button id="reset-button" class="action-button" type="button">Очистить всё</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
