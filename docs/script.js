@@ -9,7 +9,6 @@ const solveButton = document.getElementById("solve-button");
 const checkButton = document.getElementById("check-button");
 const resetButton = document.getElementById("reset-button");
 const eraseButton = document.getElementById("erase-button");
-const clearCellButton = document.getElementById("clear-cell-button");
 
 const grid = loadGrid();
 let selectedIndex = 0;
@@ -76,10 +75,6 @@ resetButton.addEventListener("click", () => {
 });
 
 eraseButton.addEventListener("click", () => {
-  setCellValue(selectedIndex, 0);
-});
-
-clearCellButton.addEventListener("click", () => {
   setCellValue(selectedIndex, 0);
 });
 
