@@ -1,4 +1,4 @@
-const STORAGE_KEY = "sudoku-solver-grid-v1";
+const STORAGE_KEY = "sudoku-solver-grid-v2";
 const SIZE = 9;
 const CELL_COUNT = SIZE * SIZE;
 
@@ -10,7 +10,9 @@ const checkButton = document.getElementById("check-button");
 const resetButton = document.getElementById("reset-button");
 const eraseButton = document.getElementById("erase-button");
 
-const grid = loadGrid();
+const state = loadState();
+const grid = state.grid;
+const cellSources = state.cellSources;
 let selectedIndex = 0;
 
 renderBoard();
@@ -42,10 +44,13 @@ solveButton.addEventListener("click", () => {
   }
 
   for (let index = 0; index < CELL_COUNT; index += 1) {
+    if (grid[index] === 0 && solved[index] !== 0) {
+      cellSources[index] = "solved";
+    }
     grid[index] = solved[index];
   }
 
-  saveGrid();
+  saveState();
   updateBoardState();
   statusElement.textContent = "Готово: судоку решено.";
 });
@@ -67,9 +72,10 @@ checkButton.addEventListener("click", () => {
 resetButton.addEventListener("click", () => {
   for (let index = 0; index < CELL_COUNT; index += 1) {
     grid[index] = 0;
+    cellSources[index] = "empty";
   }
 
-  saveGrid();
+  saveState();
   updateBoardState();
   statusElement.textContent = "Поле очищено.";
 });
@@ -151,7 +157,8 @@ function setCellValue(index, value) {
   }
 
   grid[index] = value;
-  saveGrid();
+  cellSources[index] = value === 0 ? "empty" : "user";
+  saveState();
   updateBoardState();
 
   if (value === 0) {
@@ -180,6 +187,7 @@ function updateBoardState(invalidIndexes = findConflicts(grid).invalidIndexes) {
     cell.classList.toggle("selected", index === selectedIndex);
     cell.classList.toggle("related", row === selectedRow || col === selectedCol || box === selectedBox);
     cell.classList.toggle("invalid", invalidIndexes.has(index));
+    cell.classList.toggle("solved-value", cellSources[index] === "solved" && value !== 0);
     cell.setAttribute("aria-label", `Строка ${row + 1}, столбец ${col + 1}, значение ${value || "пусто"}`);
   }
 }
@@ -337,26 +345,62 @@ function getBoxIndex(row, col) {
   return Math.floor(row / 3) * 3 + Math.floor(col / 3);
 }
 
-function loadGrid() {
+function loadState() {
+  const emptyState = {
+    grid: new Array(CELL_COUNT).fill(0),
+    cellSources: new Array(CELL_COUNT).fill("empty"),
+  };
+
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) {
-      return new Array(CELL_COUNT).fill(0);
+      return emptyState;
     }
 
     const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed) || parsed.length !== CELL_COUNT) {
-      return new Array(CELL_COUNT).fill(0);
+    if (Array.isArray(parsed) && parsed.length === CELL_COUNT) {
+      const normalizedGrid = parsed.map((value) => (Number.isInteger(value) && value >= 0 && value <= 9 ? value : 0));
+      return {
+        grid: normalizedGrid,
+        cellSources: normalizedGrid.map((value) => (value === 0 ? "empty" : "user")),
+      };
     }
 
-    return parsed.map((value) => (Number.isInteger(value) && value >= 0 && value <= 9 ? value : 0));
+    if (!parsed || !Array.isArray(parsed.grid) || parsed.grid.length !== CELL_COUNT) {
+      return emptyState;
+    }
+
+    const normalizedGrid = parsed.grid.map((value) =>
+      Number.isInteger(value) && value >= 0 && value <= 9 ? value : 0
+    );
+
+    const normalizedSources = Array.isArray(parsed.cellSources) && parsed.cellSources.length === CELL_COUNT
+      ? parsed.cellSources.map((source, index) => {
+          if (normalizedGrid[index] === 0) {
+            return "empty";
+          }
+
+          return source === "solved" ? "solved" : "user";
+        })
+      : normalizedGrid.map((value) => (value === 0 ? "empty" : "user"));
+
+    return {
+      grid: normalizedGrid,
+      cellSources: normalizedSources,
+    };
   } catch {
-    return new Array(CELL_COUNT).fill(0);
+    return emptyState;
   }
 }
 
-function saveGrid() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+function saveState() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      grid,
+      cellSources,
+    })
+  );
 }
 
 function registerServiceWorker() {
