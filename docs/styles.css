@@ -8,7 +8,7 @@
   --danger: #a64237;
   --text: #231f1a;
   --muted: #6d645c;
-  --cell: min(9.5vw, 4.5rem);
+  --board-size: min(41rem, calc(100vw - 2rem));
   --shadow: 0 18px 45px rgba(52, 40, 25, 0.16);
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
 }
@@ -110,10 +110,10 @@ button {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(9, var(--cell));
-  grid-template-rows: repeat(9, var(--cell));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 0;
-  width: fit-content;
+  width: min(100%, var(--board-size));
+  aspect-ratio: 1 / 1;
   margin: 0 auto;
   border: 3px solid var(--line);
   border-radius: 1rem;
@@ -122,16 +122,17 @@ button {
 }
 
 .cell {
-  width: var(--cell);
-  height: var(--cell);
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
   display: grid;
   place-items: center;
   border-right: 1px solid var(--line-soft);
   border-bottom: 1px solid var(--line-soft);
   background: transparent;
   color: var(--text);
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  font-weight: 700;
+  font-size: clamp(1.15rem, 3vw, 2rem);
+  font-weight: 800;
 }
 
 .cell:nth-child(9n) {
@@ -163,7 +164,8 @@ button {
 }
 
 .cell.solved-value {
-  color: #1f4b43;
+  color: #0d6b57;
+  text-shadow: 0 0 0 rgba(0, 0, 0, 0.01);
 }
 
 .controls {
@@ -208,7 +210,29 @@ button {
 
 @media (max-width: 720px) {
   :root {
-    --cell: min(10.2vw, 3.2rem);
+    --board-size: calc(100vw - 2.2rem);
+  }
+
+  .app {
+    padding: 1rem 0.7rem 2rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.2rem, 10vw, 3.1rem);
+  }
+
+  .subtitle {
+    font-size: 0.96rem;
+    line-height: 1.35;
+  }
+
+  .board-panel,
+  .controls {
+    border-radius: 1.1rem;
+  }
+
+  .board-panel {
+    padding: 0.8rem;
   }
 
   .status-row,
@@ -217,7 +241,67 @@ button {
     align-items: stretch;
   }
 
+  .status {
+    text-align: center;
+  }
+
+  .board {
+    width: min(100%, var(--board-size));
+  }
+
+  .cell {
+    font-size: clamp(1.05rem, 5vw, 1.55rem);
+  }
+
+  .controls {
+    padding: 0.8rem;
+  }
+
+  .number-pad {
+    gap: 0.55rem;
+  }
+
+  .pad-button,
+  .action-button {
+    min-height: 3.25rem;
+    padding: 0.8rem 0.6rem;
+    font-size: 1.05rem;
+    border-radius: 0.9rem;
+  }
+
+  .action-row {
+    gap: 0.55rem;
+  }
+
   .pad-button-wide {
     grid-column: span 3;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --board-size: calc(100vw - 1.7rem);
+  }
+
+  .app {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+  }
+
+  .board-panel,
+  .controls {
+    border-radius: 1rem;
+  }
+
+  .board-panel {
+    padding: 0.65rem;
+  }
+
+  .subtitle {
+    max-width: 18rem;
+  }
+
+  .cell {
+    font-size: clamp(1rem, 5.4vw, 1.35rem);
   }
 }
