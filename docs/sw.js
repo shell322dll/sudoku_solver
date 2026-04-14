@@ -1,4 +1,4 @@
-const CACHE_NAME = "sudoku-solver-cache-v1";
+const CACHE_NAME = "sudoku-solver-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -32,13 +32,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  const requestUrl = new URL(event.request.url);
+  const isAppAsset =
+    requestUrl.origin === self.location.origin &&
+    (ASSETS.includes(requestUrl.pathname.endsWith("/") ? "./" : `.${requestUrl.pathname}`) ||
+      event.request.mode === "navigate");
 
-      return fetch(event.request).then((networkResponse) => {
+  if (!isAppAsset) {
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
           return networkResponse;
         }
@@ -46,7 +52,15 @@ self.addEventListener("fetch", (event) => {
         const responseClone = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
         return networkResponse;
-      });
-    })
+      })
+      .catch(() =>
+        caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+
+          return caches.match("./");
+        })
+      )
   );
 });
