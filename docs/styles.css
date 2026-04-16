@@ -33,11 +33,12 @@ button {
 .app {
   width: min(100%, 66rem);
   margin: 0 auto;
-  padding: 1.25rem 1rem 2.5rem;
+  padding: 1rem;
 }
 
-.hero {
-  margin-bottom: 1rem;
+.workspace {
+  display: grid;
+  gap: 1rem;
 }
 
 .eyebrow {
@@ -49,17 +50,15 @@ button {
   text-transform: uppercase;
 }
 
-.hero h1 {
+.controls-heading h1 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
   line-height: 1;
 }
 
-.subtitle {
-  margin: 0.75rem 0 0;
-  max-width: 40rem;
-  color: var(--muted);
-  font-size: 1rem;
+.controls-heading {
+  margin-bottom: 1.1rem;
+  text-align: center;
 }
 
 .board-panel,
@@ -223,16 +222,7 @@ button {
   }
 
   .app {
-    padding: 1rem 0.7rem 2rem;
-  }
-
-  .hero h1 {
-    font-size: clamp(2.2rem, 10vw, 3.1rem);
-  }
-
-  .subtitle {
-    font-size: 0.96rem;
-    line-height: 1.35;
+    padding: 0.7rem;
   }
 
   .board-panel,
@@ -288,6 +278,70 @@ button {
   }
 }
 
+@media (min-width: 820px) and (orientation: landscape) {
+  :root {
+    --board-size: min(58vh, calc(100vw - 23rem));
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  .app {
+    width: min(100%, 76rem);
+    min-height: 100vh;
+    padding: 0.8rem 1rem;
+    display: grid;
+    grid-template-rows: 1fr;
+    align-content: center;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+    align-items: stretch;
+  }
+
+  .board-panel,
+  .controls {
+    margin: 0;
+  }
+
+  .board-panel {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    align-items: center;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .controls-heading h1 {
+    font-size: clamp(1.8rem, 2.5vw, 2.25rem);
+  }
+
+  .number-pad {
+    gap: 0.7rem;
+  }
+
+  .pad-button {
+    min-height: 4.2rem;
+    font-size: 1.35rem;
+  }
+
+  .action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+
+  .action-button {
+    min-height: 3.8rem;
+  }
+}
+
 @media (max-width: 430px) {
   :root {
     --board-size: calc(100vw - 1.7rem);
@@ -305,10 +359,6 @@ button {
 
   .board-panel {
     padding: 0.65rem;
-  }
-
-  .subtitle {
-    max-width: 18rem;
   }
 
   .cell {
