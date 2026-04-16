@@ -1,4 +1,4 @@
-const CACHE_NAME = "sudoku-solver-cache-v3";
+const CACHE_NAME = "sudoku-solver-cache-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
+  "./apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
