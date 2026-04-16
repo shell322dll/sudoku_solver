@@ -1,6 +1,13 @@
-const STORAGE_KEY = "sudoku-solver-grid-v2";
+const STORAGE_KEY = "sudoku-solver-state-v4";
 const SIZE = 9;
 const CELL_COUNT = SIZE * SIZE;
+const EXPERT_CLUES = 17;
+const EXPERT_PUZZLES = [
+  {
+    grid: "000000010400000000020000000000050407008000300001090000300400200050100000000806000",
+    solution: "693784512487512936125963874932651487568247391741398625319475268856129743274836159",
+  },
+];
 
 const boardElement = document.getElementById("board");
 const statusElement = document.getElementById("status");
@@ -9,11 +16,15 @@ const solveButton = document.getElementById("solve-button");
 const checkButton = document.getElementById("check-button");
 const resetButton = document.getElementById("reset-button");
 const eraseButton = document.getElementById("erase-button");
+const newPuzzleButton = document.getElementById("new-puzzle-button");
+const hintButton = document.getElementById("hint-button");
 
 const state = loadState();
 const grid = state.grid;
 const cellSources = state.cellSources;
+let puzzleSolution = state.puzzleSolution;
 let selectedIndex = 0;
+let isGenerating = false;
 
 renderBoard();
 selectCell(0);
@@ -22,14 +33,65 @@ registerServiceWorker();
 
 numberPad.addEventListener("click", (event) => {
   const button = event.target.closest("[data-value]");
-  if (!button) {
+  if (!button || isGenerating) {
     return;
   }
 
   setCellValue(selectedIndex, Number(button.dataset.value));
 });
 
+newPuzzleButton.addEventListener("click", () => {
+  if (isGenerating) {
+    return;
+  }
+
+  setGenerating(true);
+  const startedAt = performance.now();
+  statusElement.textContent = "Готовлю экспертную задачу с 17 известными цифрами...";
+
+  generateExpertPuzzleAsync(() => {
+    statusElement.textContent = `Генерирую задачу с 17 известными цифрами. Прошло: ${formatDuration(performance.now() - startedAt)}.`;
+  }).then((puzzle) => {
+    applyPuzzle(puzzle.grid, puzzle.solution);
+    setGenerating(false);
+    statusElement.textContent = `Задача готова: 17 известных цифр, одно решение. Время генерации: ${formatDuration(performance.now() - startedAt)}.`;
+  });
+});
+
+hintButton.addEventListener("click", () => {
+  if (isGenerating) {
+    return;
+  }
+
+  if (!puzzleSolution) {
+    statusElement.textContent = "Сначала создайте новую задачу.";
+    return;
+  }
+
+  const hiddenIndexes = grid
+    .map((value, index) => ({ value, index }))
+    .filter(({ value }) => value === 0)
+    .map(({ index }) => index);
+
+  if (hiddenIndexes.length === 0) {
+    statusElement.textContent = "Все клетки уже открыты.";
+    return;
+  }
+
+  const hintedIndex = hiddenIndexes[Math.floor(Math.random() * hiddenIndexes.length)];
+  grid[hintedIndex] = puzzleSolution[hintedIndex];
+  cellSources[hintedIndex] = "hint";
+  selectedIndex = hintedIndex;
+  saveState();
+  updateBoardState();
+  statusElement.textContent = "Подсказка открыла одну клетку.";
+});
+
 solveButton.addEventListener("click", () => {
+  if (isGenerating) {
+    return;
+  }
+
   const validation = findConflicts(grid);
   if (validation.invalidIndexes.size > 0) {
     statusElement.textContent = "Сначала исправьте конфликтующие цифры.";
@@ -37,14 +99,14 @@ solveButton.addEventListener("click", () => {
     return;
   }
 
-  const solved = solveSudoku([...grid]);
+  const solved = puzzleSolution ? [...puzzleSolution] : solveSudoku([...grid]);
   if (!solved) {
     statusElement.textContent = "Для этих данных решение не найдено.";
     return;
   }
 
   for (let index = 0; index < CELL_COUNT; index += 1) {
-    if (grid[index] === 0 && solved[index] !== 0) {
+    if (cellSources[index] !== "given") {
       cellSources[index] = "solved";
     }
     grid[index] = solved[index];
@@ -56,11 +118,20 @@ solveButton.addEventListener("click", () => {
 });
 
 checkButton.addEventListener("click", () => {
+  if (isGenerating) {
+    return;
+  }
+
   const { invalidIndexes } = findConflicts(grid);
   updateBoardState(invalidIndexes);
 
   if (invalidIndexes.size > 0) {
     statusElement.textContent = "Есть конфликтующие клетки. Они подсвечены.";
+    return;
+  }
+
+  if (puzzleSolution && grid.some((value, index) => value !== 0 && value !== puzzleSolution[index])) {
+    statusElement.textContent = "Есть цифры, которые не совпадают с решением.";
     return;
   }
 
@@ -70,21 +141,32 @@ checkButton.addEventListener("click", () => {
 });
 
 resetButton.addEventListener("click", () => {
+  if (isGenerating) {
+    return;
+  }
+
   for (let index = 0; index < CELL_COUNT; index += 1) {
     grid[index] = 0;
     cellSources[index] = "empty";
   }
 
+  puzzleSolution = null;
   saveState();
   updateBoardState();
   statusElement.textContent = "Поле очищено.";
 });
 
 eraseButton.addEventListener("click", () => {
-  setCellValue(selectedIndex, 0);
+  if (!isGenerating) {
+    setCellValue(selectedIndex, 0);
+  }
 });
 
 document.addEventListener("keydown", (event) => {
+  if (isGenerating) {
+    return;
+  }
+
   if (event.key >= "1" && event.key <= "9") {
     setCellValue(selectedIndex, Number(event.key));
     return;
@@ -156,6 +238,11 @@ function setCellValue(index, value) {
     return;
   }
 
+  if (cellSources[index] === "given" || cellSources[index] === "hint") {
+    statusElement.textContent = "Исходные цифры и подсказки нельзя менять.";
+    return;
+  }
+
   grid[index] = value;
   cellSources[index] = value === 0 ? "empty" : "user";
   saveState();
@@ -182,58 +269,139 @@ function updateBoardState(invalidIndexes = findConflicts(grid).invalidIndexes) {
     const col = index % SIZE;
     const box = getBoxIndex(row, col);
     const value = grid[index];
+    const source = cellSources[index];
 
     cell.textContent = value === 0 ? "" : String(value);
     cell.classList.toggle("selected", index === selectedIndex);
     cell.classList.toggle("related", row === selectedRow || col === selectedCol || box === selectedBox);
     cell.classList.toggle("invalid", invalidIndexes.has(index));
-    cell.classList.toggle("solved-value", cellSources[index] === "solved" && value !== 0);
+    cell.classList.toggle("given-value", source === "given" && value !== 0);
+    cell.classList.toggle("user-value", source === "user" && value !== 0);
+    cell.classList.toggle("solved-value", (source === "solved" || source === "hint") && value !== 0);
     cell.setAttribute("aria-label", `Строка ${row + 1}, столбец ${col + 1}, значение ${value || "пусто"}`);
   }
 }
 
-function findConflicts(values) {
-  const invalidIndexes = new Set();
-
+function applyPuzzle(puzzleGrid, solution) {
   for (let index = 0; index < CELL_COUNT; index += 1) {
-    const value = values[index];
-    if (value === 0) {
-      continue;
+    grid[index] = puzzleGrid[index];
+    cellSources[index] = puzzleGrid[index] === 0 ? "empty" : "given";
+  }
+
+  puzzleSolution = [...solution];
+  selectedIndex = puzzleGrid.findIndex((value) => value === 0);
+  if (selectedIndex === -1) {
+    selectedIndex = 0;
+  }
+
+  saveState();
+  updateBoardState();
+}
+
+function setGenerating(value) {
+  isGenerating = value;
+  [newPuzzleButton, hintButton, solveButton, checkButton, resetButton, eraseButton].forEach((button) => {
+    button.disabled = value;
+  });
+}
+
+function generateExpertPuzzleAsync(onProgress) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      onProgress();
+      resolve(createExpertPuzzleVariant());
+    }, 40);
+  });
+}
+
+function createExpertPuzzleVariant() {
+  const source = EXPERT_PUZZLES[Math.floor(Math.random() * EXPERT_PUZZLES.length)];
+  const grid = source.grid.split("").map(Number);
+  const solution = source.solution.split("").map(Number);
+  const digitMap = createDigitMap();
+  const rowMap = createHouseMap();
+  const colMap = createHouseMap();
+  const transpose = Math.random() < 0.5;
+
+  return {
+    grid: transformSudoku(grid, digitMap, rowMap, colMap, transpose),
+    solution: transformSudoku(solution, digitMap, rowMap, colMap, transpose),
+  };
+}
+
+function transformSudoku(values, digitMap, rowMap, colMap, transpose) {
+  const transformed = new Array(CELL_COUNT).fill(0);
+
+  for (let row = 0; row < SIZE; row += 1) {
+    for (let col = 0; col < SIZE; col += 1) {
+      const sourceRow = transpose ? colMap[col] : rowMap[row];
+      const sourceCol = transpose ? rowMap[row] : colMap[col];
+      const value = values[sourceRow * SIZE + sourceCol];
+      transformed[row * SIZE + col] = value === 0 ? 0 : digitMap[value];
     }
+  }
 
-    const row = Math.floor(index / SIZE);
-    const col = index % SIZE;
+  return transformed;
+}
 
-    for (let offset = 0; offset < SIZE; offset += 1) {
-      const rowIndex = row * SIZE + offset;
-      const colIndex = offset * SIZE + col;
+function createDigitMap() {
+  const shuffledDigits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const digitMap = new Array(10).fill(0);
 
-      if (rowIndex !== index && values[rowIndex] === value) {
-        invalidIndexes.add(index);
-        invalidIndexes.add(rowIndex);
-      }
+  for (let index = 0; index < shuffledDigits.length; index += 1) {
+    digitMap[index + 1] = shuffledDigits[index];
+  }
 
-      if (colIndex !== index && values[colIndex] === value) {
-        invalidIndexes.add(index);
-        invalidIndexes.add(colIndex);
-      }
+  return digitMap;
+}
+
+function createHouseMap() {
+  const bands = shuffle([0, 1, 2]);
+  const map = [];
+
+  for (const band of bands) {
+    const rows = shuffle([0, 1, 2]);
+    for (const row of rows) {
+      map.push(band * 3 + row);
     }
+  }
 
-    const startRow = Math.floor(row / 3) * 3;
-    const startCol = Math.floor(col / 3) * 3;
+  return map;
+}
 
-    for (let rowOffset = 0; rowOffset < 3; rowOffset += 1) {
-      for (let colOffset = 0; colOffset < 3; colOffset += 1) {
-        const relatedIndex = (startRow + rowOffset) * SIZE + startCol + colOffset;
-        if (relatedIndex !== index && values[relatedIndex] === value) {
-          invalidIndexes.add(index);
-          invalidIndexes.add(relatedIndex);
-        }
+function getCandidates(values, index) {
+  const row = Math.floor(index / SIZE);
+  const col = index % SIZE;
+  const candidates = [];
+
+  for (let digit = 1; digit <= 9; digit += 1) {
+    if (canPlace(values, row, col, digit)) {
+      candidates.push(digit);
+    }
+  }
+
+  return candidates;
+}
+
+function canPlace(values, row, col, digit) {
+  for (let offset = 0; offset < SIZE; offset += 1) {
+    if (values[row * SIZE + offset] === digit || values[offset * SIZE + col] === digit) {
+      return false;
+    }
+  }
+
+  const startRow = Math.floor(row / 3) * 3;
+  const startCol = Math.floor(col / 3) * 3;
+
+  for (let rowOffset = 0; rowOffset < 3; rowOffset += 1) {
+    for (let colOffset = 0; colOffset < 3; colOffset += 1) {
+      if (values[(startRow + rowOffset) * SIZE + startCol + colOffset] === digit) {
+        return false;
       }
     }
   }
 
-  return { invalidIndexes };
+  return true;
 }
 
 function solveSudoku(values) {
@@ -329,6 +497,63 @@ function search(values, rows, cols, boxes) {
   return false;
 }
 
+function findConflicts(values) {
+  const invalidIndexes = new Set();
+
+  for (let index = 0; index < CELL_COUNT; index += 1) {
+    const value = values[index];
+    if (value === 0) {
+      continue;
+    }
+
+    const row = Math.floor(index / SIZE);
+    const col = index % SIZE;
+
+    for (let offset = 0; offset < SIZE; offset += 1) {
+      const rowIndex = row * SIZE + offset;
+      const colIndex = offset * SIZE + col;
+
+      if (rowIndex !== index && values[rowIndex] === value) {
+        invalidIndexes.add(index);
+        invalidIndexes.add(rowIndex);
+      }
+
+      if (colIndex !== index && values[colIndex] === value) {
+        invalidIndexes.add(index);
+        invalidIndexes.add(colIndex);
+      }
+    }
+
+    const startRow = Math.floor(row / 3) * 3;
+    const startCol = Math.floor(col / 3) * 3;
+
+    for (let rowOffset = 0; rowOffset < 3; rowOffset += 1) {
+      for (let colOffset = 0; colOffset < 3; colOffset += 1) {
+        const relatedIndex = (startRow + rowOffset) * SIZE + startCol + colOffset;
+        if (relatedIndex !== index && values[relatedIndex] === value) {
+          invalidIndexes.add(index);
+          invalidIndexes.add(relatedIndex);
+        }
+      }
+    }
+  }
+
+  return { invalidIndexes };
+}
+
+function shuffledIndexes() {
+  return shuffle([...Array(CELL_COUNT).keys()]);
+}
+
+function shuffle(items) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+}
+
 function countBits(mask) {
   let count = 0;
   let current = mask;
@@ -345,10 +570,27 @@ function getBoxIndex(row, col) {
   return Math.floor(row / 3) * 3 + Math.floor(col / 3);
 }
 
+function formatDuration(milliseconds) {
+  if (milliseconds < 1000) {
+    return "меньше 1 сек.";
+  }
+
+  const totalSeconds = Math.round(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes === 0) {
+    return `${seconds} сек.`;
+  }
+
+  return `${minutes} мин. ${seconds} сек.`;
+}
+
 function loadState() {
   const emptyState = {
     grid: new Array(CELL_COUNT).fill(0),
     cellSources: new Array(CELL_COUNT).fill("empty"),
+    puzzleSolution: null,
   };
 
   try {
@@ -358,14 +600,6 @@ function loadState() {
     }
 
     const parsed = JSON.parse(saved);
-    if (Array.isArray(parsed) && parsed.length === CELL_COUNT) {
-      const normalizedGrid = parsed.map((value) => (Number.isInteger(value) && value >= 0 && value <= 9 ? value : 0));
-      return {
-        grid: normalizedGrid,
-        cellSources: normalizedGrid.map((value) => (value === 0 ? "empty" : "user")),
-      };
-    }
-
     if (!parsed || !Array.isArray(parsed.grid) || parsed.grid.length !== CELL_COUNT) {
       return emptyState;
     }
@@ -380,13 +614,18 @@ function loadState() {
             return "empty";
           }
 
-          return source === "solved" ? "solved" : "user";
+          return ["given", "user", "hint", "solved"].includes(source) ? source : "user";
         })
       : normalizedGrid.map((value) => (value === 0 ? "empty" : "user"));
+
+    const normalizedSolution = Array.isArray(parsed.puzzleSolution) && parsed.puzzleSolution.length === CELL_COUNT
+      ? parsed.puzzleSolution.map((value) => (Number.isInteger(value) && value >= 1 && value <= 9 ? value : 0))
+      : null;
 
     return {
       grid: normalizedGrid,
       cellSources: normalizedSources,
+      puzzleSolution: normalizedSolution && normalizedSolution.every(Boolean) ? normalizedSolution : null,
     };
   } catch {
     return emptyState;
@@ -399,6 +638,7 @@ function saveState() {
     JSON.stringify({
       grid,
       cellSources,
+      puzzleSolution,
     })
   );
 }

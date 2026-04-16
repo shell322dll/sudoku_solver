@@ -1,10 +1,12 @@
-const CACHE_NAME = "sudoku-solver-cache-v2";
+const CACHE_NAME = "sudoku-solver-cache-v3";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./script.js",
   "./manifest.webmanifest",
+  "./icon.svg",
+  "./icon-180.png",
 ];
 
 self.addEventListener("install", (event) => {
