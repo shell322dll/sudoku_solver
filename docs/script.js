@@ -156,14 +156,25 @@ checkButton.addEventListener("click", () => {
     return;
   }
 
+  const puzzleAnalysis = analyzeSudoku(getTaskSeedGrid(), 2);
+  if (puzzleAnalysis.solutionCount === 0) {
+    statusElement.textContent = "Исходная задача некорректна: решений нет.";
+    return;
+  }
+
+  if (puzzleAnalysis.solutionCount > 1) {
+    statusElement.textContent = "Исходная задача некорректна: у неё несколько решений.";
+    return;
+  }
+
   if (puzzleSolution && grid.some((value, index) => value !== 0 && value !== puzzleSolution[index])) {
     statusElement.textContent = "Есть цифры, которые не совпадают с решением.";
     return;
   }
 
   statusElement.textContent = grid.every(Boolean)
-    ? "Ошибок не найдено. Сетка заполнена."
-    : "Ошибок не найдено. Можно решать дальше.";
+    ? "Ошибок не найдено. Сетка заполнена. Единственное решение подтверждено."
+    : "Ошибок не найдено. Единственное решение подтверждено. Можно решать дальше.";
 });
 
 resetButton.addEventListener("click", () => {
