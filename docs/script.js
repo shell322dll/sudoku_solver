@@ -51,11 +51,17 @@ newPuzzleButton.addEventListener("click", () => {
 
   generateExpertPuzzleAsync(() => {
     statusElement.textContent = `Генерирую задачу с 17 известными цифрами. Прошло: ${formatDuration(performance.now() - startedAt)}.`;
-  }).then((puzzle) => {
-    applyPuzzle(puzzle.grid, puzzle.solution);
-    setGenerating(false);
-    statusElement.textContent = `Задача готова: 17 известных цифр, одно решение. Время генерации: ${formatDuration(performance.now() - startedAt)}.`;
-  });
+  })
+    .then((puzzle) => {
+      applyPuzzle(puzzle.grid, puzzle.solution);
+      statusElement.textContent = `Задача готова: 17 известных цифр, одно решение. Время генерации: ${formatDuration(performance.now() - startedAt)}.`;
+    })
+    .catch(() => {
+      statusElement.textContent = "Не удалось подготовить корректную задачу. Попробуйте ещё раз.";
+    })
+    .finally(() => {
+      setGenerating(false);
+    });
 });
 
 hintButton.addEventListener("click", () => {
@@ -63,10 +69,13 @@ hintButton.addEventListener("click", () => {
     return;
   }
 
-  if (!puzzleSolution) {
-    statusElement.textContent = "Сначала создайте новую задачу.";
+  const puzzleAnalysis = analyzeSudoku(getTaskSeedGrid(), 2);
+  if (puzzleAnalysis.solutionCount !== 1 || !puzzleAnalysis.solution) {
+    statusElement.textContent = "Подсказка доступна только для задачи с единственным решением.";
     return;
   }
+
+  puzzleSolution = [...puzzleAnalysis.solution];
 
   const hiddenIndexes = grid
     .map((value, index) => ({ value, index }))
@@ -99,19 +108,36 @@ solveButton.addEventListener("click", () => {
     return;
   }
 
-  const solved = puzzleSolution ? [...puzzleSolution] : solveSudoku([...grid]);
-  if (!solved) {
-    statusElement.textContent = "Для этих данных решение не найдено.";
+  const puzzleAnalysis = analyzeSudoku(getTaskSeedGrid(), 2);
+  if (puzzleAnalysis.solutionCount === 0) {
+    statusElement.textContent = "В исходной задаче нет корректного решения.";
+    return;
+  }
+
+  if (puzzleAnalysis.solutionCount > 1) {
+    statusElement.textContent = "У этой задачи больше одного решения. По правилам судоку такая задача некорректна.";
+    return;
+  }
+
+  const currentAnalysis = analyzeSudoku([...grid], 2);
+  if (currentAnalysis.solutionCount === 0 || !currentAnalysis.solution) {
+    statusElement.textContent = "Для текущих данных решение не найдено. Проверьте введённые цифры.";
+    return;
+  }
+
+  if (currentAnalysis.solutionCount > 1) {
+    statusElement.textContent = "У текущей сетки несколько решений. Я не буду подставлять один из вариантов.";
     return;
   }
 
   for (let index = 0; index < CELL_COUNT; index += 1) {
-    if (cellSources[index] !== "given") {
+    if (cellSources[index] !== "given" && cellSources[index] !== "hint") {
       cellSources[index] = "solved";
     }
-    grid[index] = solved[index];
+    grid[index] = currentAnalysis.solution[index];
   }
 
+  puzzleSolution = [...puzzleAnalysis.solution];
   saveState();
   updateBoardState();
   statusElement.textContent = "Готово: судоку решено.";
@@ -309,15 +335,30 @@ function generateExpertPuzzleAsync(onProgress) {
   return new Promise((resolve) => {
     setTimeout(() => {
       onProgress();
-      resolve(createExpertPuzzleVariant());
+      resolve(createValidatedExpertPuzzle());
     }, 40);
   });
+}
+
+function createValidatedExpertPuzzle() {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const candidate = createExpertPuzzleVariant();
+    const analysis = analyzeSudoku([...candidate.grid], 2);
+
+    if (analysis.solutionCount === 1 && analysis.solution) {
+      return {
+        grid: candidate.grid,
+        solution: analysis.solution,
+      };
+    }
+  }
+
+  throw new Error("Не удалось подготовить корректную экспертную задачу.");
 }
 
 function createExpertPuzzleVariant() {
   const source = EXPERT_PUZZLES[Math.floor(Math.random() * EXPERT_PUZZLES.length)];
   const grid = source.grid.split("").map(Number);
-  const solution = source.solution.split("").map(Number);
   const digitMap = createDigitMap();
   const rowMap = createHouseMap();
   const colMap = createHouseMap();
@@ -325,7 +366,6 @@ function createExpertPuzzleVariant() {
 
   return {
     grid: transformSudoku(grid, digitMap, rowMap, colMap, transpose),
-    solution: transformSudoku(solution, digitMap, rowMap, colMap, transpose),
   };
 }
 
@@ -405,6 +445,11 @@ function canPlace(values, row, col, digit) {
 }
 
 function solveSudoku(values) {
+  const analysis = analyzeSudoku(values, 1);
+  return analysis.solutionCount === 1 ? analysis.solution : null;
+}
+
+function analyzeSudoku(values, limit = 2) {
   const rows = new Uint16Array(SIZE);
   const cols = new Uint16Array(SIZE);
   const boxes = new Uint16Array(SIZE);
@@ -421,7 +466,10 @@ function solveSudoku(values) {
     const mask = 1 << value;
 
     if ((rows[row] & mask) || (cols[col] & mask) || (boxes[box] & mask)) {
-      return null;
+      return {
+        solutionCount: 0,
+        solution: null,
+      };
     }
 
     rows[row] |= mask;
@@ -429,11 +477,20 @@ function solveSudoku(values) {
     boxes[box] |= mask;
   }
 
-  const solved = search(values, rows, cols, boxes);
-  return solved ? values : null;
+  const solutions = [];
+  search(values, rows, cols, boxes, solutions, limit);
+
+  return {
+    solutionCount: solutions.length,
+    solution: solutions[0] ?? null,
+  };
 }
 
-function search(values, rows, cols, boxes) {
+function search(values, rows, cols, boxes, solutions, limit) {
+  if (solutions.length >= limit) {
+    return;
+  }
+
   let bestIndex = -1;
   let bestMask = 0;
   let bestCount = 10;
@@ -451,7 +508,7 @@ function search(values, rows, cols, boxes) {
     const count = countBits(candidateMask);
 
     if (count === 0) {
-      return false;
+      return;
     }
 
     if (count < bestCount) {
@@ -466,7 +523,8 @@ function search(values, rows, cols, boxes) {
   }
 
   if (bestIndex === -1) {
-    return true;
+    solutions.push([...values]);
+    return;
   }
 
   const row = Math.floor(bestIndex / SIZE);
@@ -484,17 +542,17 @@ function search(values, rows, cols, boxes) {
     cols[col] |= mask;
     boxes[box] |= mask;
 
-    if (search(values, rows, cols, boxes)) {
-      return true;
-    }
+    search(values, rows, cols, boxes, solutions, limit);
 
     values[bestIndex] = 0;
     rows[row] &= ~mask;
     cols[col] &= ~mask;
     boxes[box] &= ~mask;
-  }
 
-  return false;
+    if (solutions.length >= limit) {
+      return;
+    }
+  }
 }
 
 function findConflicts(values) {
@@ -568,6 +626,14 @@ function countBits(mask) {
 
 function getBoxIndex(row, col) {
   return Math.floor(row / 3) * 3 + Math.floor(col / 3);
+}
+
+function getTaskSeedGrid() {
+  if (cellSources.includes("given")) {
+    return grid.map((value, index) => (cellSources[index] === "given" ? value : 0));
+  }
+
+  return [...grid];
 }
 
 function formatDuration(milliseconds) {
