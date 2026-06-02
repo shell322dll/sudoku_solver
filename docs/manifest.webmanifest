@@ -1,8 +1,10 @@
 {
+  "id": "https://sudoku.onedesire.ru/?app_id=sudoku-solver-pwa",
   "name": "Решалка Судоку",
   "short_name": "Судоку",
   "lang": "ru",
-  "start_url": "./",
+  "start_url": "https://sudoku.onedesire.ru/?app_id=sudoku-solver-pwa",
+  "scope": "https://sudoku.onedesire.ru/",
   "display": "standalone",
   "background_color": "#f3efe4",
   "theme_color": "#f3efe4",
@@ -27,11 +29,10 @@
       "src": "/apple-touch-icon-120x120.png",
       "sizes": "120x120",
       "type": "image/png"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
-  ]
+  ],
+  "launch_handler": {
+    "client_mode": ["focus-existing", "navigate-existing"]
+  },
+  "prefer_related_applications": false
 }

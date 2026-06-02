@@ -1,12 +1,10 @@
-const CACHE_NAME = "sudoku-solver-cache-v7";
+const CACHE_NAME = "sudoku-solver-cache-v8";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./script.js",
   "./manifest.webmanifest",
-  "./icon.svg",
-  "./icon-180.png",
   "./apple-touch-icon.png",
   "./apple-touch-icon-precomposed.png",
   "./apple-touch-icon-180x180.png",
