@@ -114,19 +114,9 @@ solveButton.addEventListener("click", () => {
     return;
   }
 
-  if (puzzleAnalysis.solutionCount > 1) {
-    statusElement.textContent = "У этой задачи больше одного решения. По правилам судоку такая задача некорректна.";
-    return;
-  }
-
   const currentAnalysis = analyzeSudoku([...grid], 2);
   if (currentAnalysis.solutionCount === 0 || !currentAnalysis.solution) {
     statusElement.textContent = "Для текущих данных решение не найдено. Проверьте введённые цифры.";
-    return;
-  }
-
-  if (currentAnalysis.solutionCount > 1) {
-    statusElement.textContent = "У текущей сетки несколько решений. Я не буду подставлять один из вариантов.";
     return;
   }
 
@@ -137,10 +127,13 @@ solveButton.addEventListener("click", () => {
     grid[index] = currentAnalysis.solution[index];
   }
 
-  puzzleSolution = [...puzzleAnalysis.solution];
+  puzzleSolution = puzzleAnalysis.solution ? [...puzzleAnalysis.solution] : null;
   saveState();
   updateBoardState();
-  statusElement.textContent = "Готово: судоку решено.";
+  statusElement.textContent = formatSolutionStatus(
+    currentAnalysis.solutionCount,
+    "Готово: судоку решено."
+  );
 });
 
 checkButton.addEventListener("click", () => {
@@ -162,19 +155,12 @@ checkButton.addEventListener("click", () => {
     return;
   }
 
-  if (puzzleAnalysis.solutionCount > 1) {
-    statusElement.textContent = "Исходная задача некорректна: у неё несколько решений.";
-    return;
-  }
-
-  if (puzzleSolution && grid.some((value, index) => value !== 0 && value !== puzzleSolution[index])) {
-    statusElement.textContent = "Есть цифры, которые не совпадают с решением.";
-    return;
-  }
-
-  statusElement.textContent = grid.every(Boolean)
-    ? "Ошибок не найдено. Сетка заполнена. Единственное решение подтверждено."
-    : "Ошибок не найдено. Единственное решение подтверждено. Можно решать дальше.";
+  statusElement.textContent = formatSolutionStatus(
+    puzzleAnalysis.solutionCount,
+    grid.every(Boolean)
+      ? "Ошибок не найдено. Сетка заполнена."
+      : "Ошибок не найдено. Можно решать дальше."
+  );
 });
 
 resetButton.addEventListener("click", () => {
@@ -645,6 +631,14 @@ function getTaskSeedGrid() {
   }
 
   return [...grid];
+}
+
+function formatSolutionStatus(solutionCount, prefix) {
+  if (solutionCount === 1) {
+    return `${prefix} Судоку имеет только одно решение.`;
+  }
+
+  return `${prefix} Судоку имеет несколько решений.`;
 }
 
 function formatDuration(milliseconds) {
